@@ -2,9 +2,12 @@
 # Request a modern OpenGL context before Ursina initializes Panda3D.
 from panda3d.core import loadPrcFileData
 loadPrcFileData("", "gl-version 3 2")
-from ursina import AmbientLight, DirectionalLight, Entity, Sky, Text, Ursina, Vec3, application, camera, color, destroy, lerp, time, window
+from ursina import AmbientLight, DirectionalLight, Entity, Sky, Text, Ursina, Vec3, camera, color, destroy, lerp, time, window
 from random import Random
 from math import cos, floor, pi as PI, sin
+from typing import Any, cast
+
+ursina_time = cast(Any, time)
 
 app = Ursina()
 window.title = "Tiny Kingdom — Autonomous RTS"
@@ -159,7 +162,7 @@ def update():
     global worker_state, target, work_timer, carry_kind, carry_amount, build_timer, game_over
     if game_over:
         return
-    dt = min(time.dt, 0.05)
+    dt = min(ursina_time.dt, 0.05)
     age += dt
     eat_timer -= dt
     build_timer -= dt
