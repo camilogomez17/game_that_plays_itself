@@ -20,6 +20,8 @@ camera.fov = 85
 food = wood = coins = 0
 health = 100
 age = 0
+eat_timer = 0
+enemy_next = 8
 world = {}
 enemies = []
 resources = []
@@ -78,9 +80,10 @@ def spawn_enemy():
 
 
 def update():
-    global food, wood, coins, health, age
+    global food, wood, coins, health, age, eat_timer, enemy_next
     dt = min(time.dt, 0.05)
     age += dt
+    eat_timer -= dt
     update_world()
 
     # The agent seeks the nearest visible resource; if none exist, it explores.
@@ -104,8 +107,9 @@ def update():
         player.x += 2 * dt
 
     # Enemies approach and are automatically fought at close range.
-    if age > 5 and int(age) % 8 == 0 and not enemies:
+    if age >= enemy_next and not enemies:
         spawn_enemy()
+        enemy_next = age + 8
     for enemy in enemies[:]:
         direction = Vec3(player.x-enemy.x, 0, player.z-enemy.z)
         distance = max((direction.x**2 + direction.z**2) ** 0.5, 0.001)
@@ -118,9 +122,10 @@ def update():
                 enemies.remove(enemy)
                 destroy(enemy)
                 coins += 2
-    if food > 0 and health < 100:
+    if food > 0 and health <= 85 and eat_timer <= 0:
         food -= 1
-        health = min(100, health + 8)
+        health = min(100, health + 15)
+        eat_timer = 3
     if health <= 0:
         help_text.text = "DEFEATED — close window and rerun to restart"
         application.pause()
