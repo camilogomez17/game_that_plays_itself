@@ -1,33 +1,93 @@
-"""Tiny 3D auto-survival MVP. Run with: python3 -m pip install -r requirements.txt && python3 main.py"""
+"""Tiny Age-of-Empires-inspired autonomous settlement. Run: python3 main.py"""
 from ursina import *
 from random import Random
-from math import floor
+from math import floor, sin, cos, pi
 
 app = Ursina()
-window.title = "Self-Playing Survival"
-window.color = color.rgb(135, 190, 225)
+window.title = "Tiny Kingdom — Autonomous RTS"
+window.color = color.rgb(145, 190, 225)
 window.fps_counter.enabled = True
+camera.fov = 55
 
-CHUNK = 24
+CHUNK = 28
 RADIUS = 2
 SEED = 41
-player = Entity(model="cube", color=color.azure, scale=(0.8, 1.6, 0.8), position=(0, 1, 0))
-camera.position = (0, 12, -18)
-camera.rotation_x = 28
-camera.parent = scene
-camera.fov = 85
+BASE = Vec3(0, 0, 0)
+world, resources, enemies, buildings = {}, [], [], []
+age, health, food, wood, coins = 0.0, 100.0, 0, 0, 0
+enemy_next, eat_timer = 10.0, 0.0
+worker_state, target, work_timer, carry_kind, carry_amount = "gather", None, 0.0, None, 0
+build_timer = 0.0
 
-food = wood = coins = 0
-health = 100
-age = 0
-eat_timer = 0
-enemy_next = 8
-world = {}
-enemies = []
-resources = []
-hud = Text(position=(-0.86, 0.46), scale=1.1)
-help_text = Text("AUTOPILOT ON  |  ESC: quit", position=(-0.86, 0.40), scale=0.8, color=color.white)
-ground_color = color.rgb(80, 145, 80)
+ground_color = color.rgb(91, 151, 83)
+hud = Text(position=(-0.86, 0.46), scale=0.95, background=True)
+status = Text(position=(-0.86, 0.39), scale=0.75, background=True)
+tips = Text("AUTONOMOUS SETTLEMENT  |  ESC: quit", position=(-0.86, -0.46), scale=0.7)
+
+
+def part(parent, model, tint, pos, scale, rotation=(0, 0, 0)):
+    return Entity(parent=parent, model=model, color=tint, position=pos, scale=scale, rotation=rotation)
+
+
+def make_worker():
+    root = Entity(position=(0, 0, -2))
+    # A readable low-poly villager assembled from simple meshes.
+    part(root, "cube", color.rgb(48, 95, 170), (0, 1.05, 0), (0.58, 0.78, 0.34))
+    part(root, "sphere", color.rgb(224, 178, 133), (0, 1.68, 0), (0.38, 0.4, 0.36))
+    part(root, "cone", color.rgb(116, 76, 43), (0, 1.94, 0), (0.48, 0.22, 0.48))
+    for side in (-1, 1):
+        part(root, "cube", color.rgb(224, 178, 133), (side * 0.39, 1.08, 0), (0.16, 0.62, 0.18), (0, 0, side * -8))
+        part(root, "cube", color.rgb(65, 65, 82), (side * 0.17, 0.43, 0), (0.19, 0.5, 0.22))
+    return root
+
+
+worker = make_worker()
+
+
+def make_tree(parent, scale=1.0):
+    part(parent, "cylinder", color.rgb(105, 72, 43), (0, 0.8, 0), (0.32, 1.6, 0.32))
+    part(parent, "sphere", color.rgb(43, 117, 53), (0, 1.85, 0), (1.15, 1.25, 1.1))
+    part(parent, "sphere", color.rgb(57, 137, 59), (0.35, 2.15, 0.05), (0.78, 0.85, 0.82))
+
+
+def make_node(kind, x, z, stock):
+    root = Entity(position=(x, 0, z))
+    root.kind, root.stock = kind, stock
+    if kind == "wood":
+        make_tree(root)
+    elif kind == "food":
+        part(root, "sphere", color.rgb(45, 130, 48), (0, 0.45, 0), (1.0, 0.65, 0.9))
+        for bx, bz in ((-.22, -.12), (.18, -.08), (0.05, .2)):
+            part(root, "sphere", color.rgb(190, 45, 55), (bx, 0.72, bz), (0.18, 0.18, 0.18))
+    else:
+        part(root, "sphere", color.rgb(95, 94, 99), (0, 0.42, 0), (1.1, 0.8, 0.9))
+        for ox, oz in ((-.22, 0), (.18, .12), (0, -.2)):
+            part(root, "sphere", color.rgb(222, 177, 48), (ox, 0.68, oz), (0.24, 0.2, 0.22))
+    resources.append(root)
+    return root
+
+
+def make_building(kind, x, z):
+    root = Entity(position=(x, 0, z))
+    if kind == "town":
+        part(root, "cube", color.rgb(190, 168, 126), (0, 1.05, 0), (3.8, 2.1, 3.4))
+        part(root, "cone", color.rgb(135, 63, 47), (0, 2.55, 0), (3.6, 1.5, 3.6))
+        part(root, "cube", color.rgb(94, 65, 42), (0, 0.65, -1.73), (0.75, 1.3, 0.12))
+        part(root, "cube", color.rgb(231, 205, 143), (0, 2.05, -1.75), (0.85, 0.18, 0.1))
+    elif kind == "house":
+        part(root, "cube", color.rgb(204, 188, 146), (0, 0.65, 0), (2.0, 1.3, 1.8))
+        part(root, "cone", color.rgb(139, 67, 48), (0, 1.65, 0), (2.3, 1.1, 2.2))
+        part(root, "cube", color.rgb(89, 59, 40), (0, 0.4, -0.93), (0.42, 0.8, 0.08))
+    else:
+        part(root, "cylinder", color.rgb(159, 151, 131), (0, 1.2, 0), (1.25, 2.4, 1.25))
+        part(root, "cone", color.rgb(118, 61, 48), (0, 2.75, 0), (1.5, 0.9, 1.5))
+        part(root, "cube", color.rgb(111, 77, 50), (0, 2.0, -0.65), (0.16, 0.8, 0.12))
+    buildings.append(root)
+    root.kind = kind
+    return root
+
+
+town_center = make_building("town", 0, 0)
 
 
 def chunk_key(x, z):
@@ -35,112 +95,163 @@ def chunk_key(x, z):
 
 
 def make_chunk(cx, cz):
-    key = (cx, cz)
     rng = Random(SEED + cx * 73856093 + cz * 19349663)
     base = Entity(model="plane", scale=CHUNK, position=(cx * CHUNK, 0, cz * CHUNK),
                   color=ground_color, collider="box")
     props = [base]
-    for _ in range(9):
-        x, z = cx * CHUNK + rng.uniform(-CHUNK / 2, CHUNK / 2), cz * CHUNK + rng.uniform(-CHUNK / 2, CHUNK / 2)
-        kind = rng.choice(("food", "wood", "coin", "tree"))
-        if kind == "tree":
-            obj = Entity(model="cube", color=color.rgb(35, 105, 45), scale=(1.4, 2.8, 1.4), position=(x, 1.4, z))
-            props.append(obj)
-        else:
-            shade = {"food": color.lime, "wood": color.rgb(130, 82, 45), "coin": color.yellow}[kind]
-            obj = Entity(model="sphere" if kind == "coin" else "cube", color=shade,
-                         scale=0.65 if kind == "coin" else (0.8, 0.8, 0.8), position=(x, 0.55, z))
-            obj.kind = kind
-            resources.append(obj)
-            props.append(obj)
-    world[key] = props
+    # Small patches of flowers add depth without requiring texture assets.
+    for _ in range(3):
+        x = cx * CHUNK + rng.uniform(-CHUNK/2, CHUNK/2)
+        z = cz * CHUNK + rng.uniform(-CHUNK/2, CHUNK/2)
+        flower = Entity(model="sphere", color=color.rgb(232, 218, 165),
+                        scale=0.12, position=(x, 0.08, z))
+        props.append(flower)
+    for _ in range(7):
+        x = cx * CHUNK + rng.uniform(-CHUNK/2 + 2, CHUNK/2 - 2)
+        z = cz * CHUNK + rng.uniform(-CHUNK/2 + 2, CHUNK/2 - 2)
+        if abs(x) < 5 and abs(z) < 5:
+            continue
+        kind = rng.choice(("wood", "wood", "food", "gold"))
+        node = make_node(kind, x, z, {"wood": 5, "food": 4, "gold": 5}[kind])
+        props.append(node)
+    world[(cx, cz)] = props
 
 
 def update_world():
-    cx, cz = chunk_key(player.x, player.z)
-    wanted = {(x, z) for x in range(cx - RADIUS, cx + RADIUS + 1)
-              for z in range(cz - RADIUS, cz + RADIUS + 1)}
+    cx, cz = chunk_key(worker.x, worker.z)
+    wanted = {(x, z) for x in range(cx-RADIUS, cx+RADIUS+1)
+              for z in range(cz-RADIUS, cz+RADIUS+1)}
     for key in wanted - world.keys():
         make_chunk(*key)
     for key in set(world) - wanted:
         for obj in world.pop(key):
-            if hasattr(obj, "kind") and obj in resources:
+            if obj in resources:
                 resources.remove(obj)
             destroy(obj)
 
 
+def move_toward(entity, point, speed, dt):
+    delta = Vec3(point.x-entity.x, 0, point.z-entity.z)
+    distance = max((delta.x*delta.x + delta.z*delta.z)**0.5, 0.001)
+    if distance > 0.02:
+        entity.position += delta.normalized() * min(speed*dt, distance)
+        entity.rotation_y = 0 if abs(delta.x) + abs(delta.z) < 0.001 else __import__("math").degrees(__import__("math").atan2(delta.x, delta.z))
+    return distance
+
+
 def spawn_enemy():
-    angle = Random(int(age * 1000) + SEED).uniform(0, 6.283)
-    distance = 13
-    enemy = Entity(model="cube", color=color.rgb(190, 55, 55), scale=(1, 1.5, 1),
-                   position=(player.x + distance * __import__("math").cos(angle), 0.75,
-                             player.z + distance * __import__("math").sin(angle)))
-    enemy.hp = 2
+    rng = Random(SEED + int(age * 1000))
+    angle = rng.uniform(0, 2*pi)
+    enemy = Entity(position=(worker.x + cos(angle)*15, 0, worker.z + sin(angle)*15))
+    part(enemy, "cube", color.rgb(150, 48, 48), (0, 1.0, 0), (0.75, 0.95, 0.5))
+    part(enemy, "sphere", color.rgb(195, 142, 104), (0, 1.68, 0), (0.42, 0.42, 0.42))
+    part(enemy, "cone", color.rgb(66, 54, 48), (0, 1.96, 0), (0.5, 0.25, 0.5))
+    enemy.hp = 3
     enemies.append(enemy)
 
 
 def update():
-    global food, wood, coins, health, age, eat_timer, enemy_next
+    global age, health, food, wood, coins, enemy_next, eat_timer
+    global worker_state, target, work_timer, carry_kind, carry_amount, build_timer
     dt = min(time.dt, 0.05)
     age += dt
     eat_timer -= dt
+    build_timer -= dt
     update_world()
 
-    # The agent seeks the nearest visible resource; if none exist, it explores.
-    targets = [r for r in resources if r.enabled]
-    if targets:
-        target = min(targets, key=lambda r: (r.x-player.x)**2 + (r.z-player.z)**2)
-        dx, dz = target.x-player.x, target.z-player.z
-        distance = max((dx*dx + dz*dz) ** 0.5, 0.001)
-        if distance > 1.15:
-            player.position += Vec3(dx/distance, 0, dz/distance) * 4 * dt
+    # The worker gathers by working at a source, then carries a load to the town center.
+    if worker_state == "gather":
+        candidates = [r for r in resources if r.enabled and r.stock > 0]
+        if not candidates:
+            worker.x += 1.5 * dt
+            target = None
         else:
-            if target.kind == "food":
-                food += 1
-            elif target.kind == "wood":
-                wood += 1
+            if target not in candidates:
+                # Prioritize food when hurt, otherwise choose the nearest workable source.
+                desired = "food" if health < 65 and food < 2 else None
+                options = [r for r in candidates if r.kind == desired] if desired else candidates
+                target = min(options or candidates, key=lambda r: (r.x-worker.x)**2 + (r.z-worker.z)**2)
+                work_timer = 0
+            distance = move_toward(worker, target.position, 3.2, dt)
+            if distance < 1.8:
+                work_timer += dt
+                worker.rotation_y = sin(age * 9) * 12
+                if work_timer >= 2.0:
+                    carry_kind = target.kind
+                    carry_amount = 1
+                    target.stock -= 1
+                    work_timer = 0
+                    if target.stock <= 0:
+                        target.enabled = False
+                        for child in target.children:
+                            child.enabled = False
+                    worker_state = "return"
+    elif worker_state == "return":
+        distance = move_toward(worker, town_center.position, 4.0, dt)
+        if distance < 3.4:
+            if carry_kind == "wood":
+                wood += carry_amount
+            elif carry_kind == "food":
+                food += carry_amount
             else:
-                coins += 1
-            resources.remove(target)
-            destroy(target)
-    else:
-        player.x += 2 * dt
+                coins += carry_amount
+            carry_kind, carry_amount, target = None, 0, None
+            worker_state = "gather"
 
-    # Enemies approach and are automatically fought at close range.
+    # Spend stored materials on a settlement: houses raise capacity visually, towers defend.
+    if build_timer <= 0:
+        if wood >= 6 and coins >= 3 and sum(1 for b in buildings if b.kind == "house") < 4:
+            wood -= 6
+            coins -= 3
+            idx = sum(1 for b in buildings if b.kind == "house")
+            angle = idx * (pi/2) + pi/4
+            make_building("house", cos(angle)*6, sin(angle)*6)
+            build_timer = 3
+        elif wood >= 10 and coins >= 5 and not any(b.kind == "tower" for b in buildings):
+            wood -= 10
+            coins -= 5
+            make_building("tower", 4.8, -4.8)
+            build_timer = 3
+
+    # Raids grow more frequent over time; the worker and tower automatically defend.
     if age >= enemy_next and not enemies:
         spawn_enemy()
-        enemy_next = age + 8
+        enemy_next = age + max(5, 12 - age/50)
     for enemy in enemies[:]:
-        direction = Vec3(player.x-enemy.x, 0, player.z-enemy.z)
-        distance = max((direction.x**2 + direction.z**2) ** 0.5, 0.001)
-        if distance > 1.4:
-            enemy.position += direction.normalized() * 2.2 * dt
-        else:
-            enemy.hp -= dt * (1 + wood * 0.03)
-            health -= dt * 3
+        dist = move_toward(enemy, worker.position, 2.0, dt)
+        if dist < 1.55:
+            enemy.hp -= dt * (0.65 + wood * 0.01)
+            health -= dt * 2.2
             if enemy.hp <= 0:
                 enemies.remove(enemy)
                 destroy(enemy)
                 coins += 2
-    if food > 0 and health <= 85 and eat_timer <= 0:
+    if any(b.kind == "tower" for b in buildings):
+        for enemy in enemies[:]:
+            if (enemy.x-4.8)**2 + (enemy.z+4.8)**2 < 11:
+                enemy.hp -= dt * 1.8
+                if enemy.hp <= 0:
+                    enemies.remove(enemy)
+                    destroy(enemy)
+                    coins += 2
+    if food > 0 and health < 80 and eat_timer <= 0:
         food -= 1
-        health = min(100, health + 15)
+        health = min(100, health+20)
         eat_timer = 3
     if health <= 0:
-        help_text.text = "DEFEATED — close window and rerun to restart"
+        status.text = "SETTLEMENT LOST — close the window and rerun"
         application.pause()
-    hud.text = f"HP {int(health)}   FOOD {food}   WOOD {wood}   COINS {coins}   WORLD {int(player.x)},{int(player.z)}"
-    camera.position = lerp(camera.position, Vec3(player.x, 12, player.z-18), dt * 2)
-    camera.look_at(player.position)
+
+    carrying = f" | CARRYING {carry_kind.upper()}" if carry_kind else ""
+    hud.text = f"HP {int(health)}   FOOD {food}   WOOD {wood}   GOLD {coins}   HOUSES {sum(1 for b in buildings if b.kind == 'house')}"
+    status.text = f"WORKER: {worker_state.upper()}{carrying}   |   RAIDS {int(age//12)}"
+    camera.position = lerp(camera.position, Vec3(worker.x+1, 19, worker.z-23), dt*2)
+    camera.rotation_x = 38
+    camera.look_at(Vec3(worker.x, 0, worker.z))
 
 
-def input(key):
-    if key == "escape":
-        application.quit()
-
-
-# A small, persistent sun and low-cost lighting.
-DirectionalLight(y=10, z=5, shadows=False)
+DirectionalLight(y=12, z=4, shadows=False)
+AmbientLight(color=color.rgba(150, 150, 150, 255))
 Sky()
 update_world()
 app.run()
