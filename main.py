@@ -1,4 +1,7 @@
 """Tiny Age-of-Empires-inspired autonomous settlement. Run: python3 main.py"""
+# Request a modern OpenGL context before Ursina initializes Panda3D.
+from panda3d.core import loadPrcFileData
+loadPrcFileData("", "gl-version 3 2")
 from ursina import *
 from random import Random
 from math import floor, sin, cos, pi
@@ -34,7 +37,7 @@ def make_worker():
     # A readable low-poly villager assembled from simple meshes.
     part(root, "cube", color.rgb(48, 95, 170), (0, 1.05, 0), (0.58, 0.78, 0.34))
     part(root, "sphere", color.rgb(224, 178, 133), (0, 1.68, 0), (0.38, 0.4, 0.36))
-    part(root, "cone", color.rgb(116, 76, 43), (0, 1.94, 0), (0.48, 0.22, 0.48))
+    part(root, "sphere", color.rgb(116, 76, 43), (0, 1.94, 0), (0.48, 0.22, 0.48))
     for side in (-1, 1):
         part(root, "cube", color.rgb(224, 178, 133), (side * 0.39, 1.08, 0), (0.16, 0.62, 0.18), (0, 0, side * -8))
         part(root, "cube", color.rgb(65, 65, 82), (side * 0.17, 0.43, 0), (0.19, 0.5, 0.22))
@@ -79,7 +82,7 @@ def make_building(kind, x, z):
         part(root, "cone", color.rgb(139, 67, 48), (0, 1.65, 0), (2.3, 1.1, 2.2))
         part(root, "cube", color.rgb(89, 59, 40), (0, 0.4, -0.93), (0.42, 0.8, 0.08))
     else:
-        part(root, "cylinder", color.rgb(159, 151, 131), (0, 1.2, 0), (1.25, 2.4, 1.25))
+        part(root, "cube", color.rgb(159, 151, 131), (0, 1.2, 0), (1.25, 2.4, 1.25))
         part(root, "cone", color.rgb(118, 61, 48), (0, 2.75, 0), (1.5, 0.9, 1.5))
         part(root, "cube", color.rgb(111, 77, 50), (0, 2.0, -0.65), (0.16, 0.8, 0.12))
     buildings.append(root)
