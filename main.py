@@ -2,9 +2,9 @@
 # Request a modern OpenGL context before Ursina initializes Panda3D.
 from panda3d.core import loadPrcFileData
 loadPrcFileData("", "gl-version 3 2")
-from ursina import *
+from ursina import AmbientLight, DirectionalLight, Entity, Sky, Text, Ursina, Vec3, application, camera, color, destroy, lerp, time, window
 from random import Random
-from math import floor, sin, cos, pi
+from math import cos, floor, pi as PI, sin
 
 app = Ursina()
 window.title = "Tiny Kingdom — Autonomous RTS"
@@ -21,6 +21,7 @@ age, health, food, wood, coins = 0.0, 100.0, 0, 0, 0
 enemy_next, eat_timer = 10.0, 0.0
 worker_state, target, work_timer, carry_kind, carry_amount = "gather", None, 0.0, None, 0
 build_timer = 0.0
+game_over = False
 
 ground_color = color.rgb(91, 151, 83)
 hud = Text(position=(-0.86, 0.46), scale=0.95, background=True)
@@ -144,7 +145,7 @@ def move_toward(entity, point, speed, dt):
 
 def spawn_enemy():
     rng = Random(SEED + int(age * 1000))
-    angle = rng.uniform(0, 2*pi)
+    angle = rng.uniform(0, 2*PI)
     enemy = Entity(position=(worker.x + cos(angle)*15, 0, worker.z + sin(angle)*15))
     part(enemy, "cube", color.rgb(150, 48, 48), (0, 1.0, 0), (0.75, 0.95, 0.5))
     part(enemy, "sphere", color.rgb(195, 142, 104), (0, 1.68, 0), (0.42, 0.42, 0.42))
@@ -155,7 +156,9 @@ def spawn_enemy():
 
 def update():
     global age, health, food, wood, coins, enemy_next, eat_timer
-    global worker_state, target, work_timer, carry_kind, carry_amount, build_timer
+    global worker_state, target, work_timer, carry_kind, carry_amount, build_timer, game_over
+    if game_over:
+        return
     dt = min(time.dt, 0.05)
     age += dt
     eat_timer -= dt
@@ -175,20 +178,21 @@ def update():
                 options = [r for r in candidates if r.kind == desired] if desired else candidates
                 target = min(options or candidates, key=lambda r: (r.x-worker.x)**2 + (r.z-worker.z)**2)
                 work_timer = 0
-            distance = move_toward(worker, target.position, 3.2, dt)
-            if distance < 1.8:
-                work_timer += dt
-                worker.rotation_y = sin(age * 9) * 12
-                if work_timer >= 2.0:
-                    carry_kind = target.kind
-                    carry_amount = 1
-                    target.stock -= 1
-                    work_timer = 0
-                    if target.stock <= 0:
-                        target.enabled = False
-                        for child in target.children:
-                            child.enabled = False
-                    worker_state = "return"
+            if target is not None:
+                distance = move_toward(worker, target.position, 3.2, dt)
+                if distance < 1.8:
+                    work_timer += dt
+                    worker.rotation_y = sin(age * 9) * 12
+                    if work_timer >= 2.0:
+                        carry_kind = target.kind
+                        carry_amount = 1
+                        target.stock -= 1
+                        work_timer = 0
+                        if target.stock <= 0:
+                            target.enabled = False
+                            for child in target.children:
+                                child.enabled = False
+                        worker_state = "return"
     elif worker_state == "return":
         distance = move_toward(worker, town_center.position, 4.0, dt)
         if distance < 3.4:
@@ -207,7 +211,7 @@ def update():
             wood -= 6
             coins -= 3
             idx = sum(1 for b in buildings if b.kind == "house")
-            angle = idx * (pi/2) + pi/4
+            angle = idx * (PI/2) + PI/4
             make_building("house", cos(angle)*6, sin(angle)*6)
             build_timer = 3
         elif wood >= 10 and coins >= 5 and not any(b.kind == "tower" for b in buildings):
@@ -242,8 +246,9 @@ def update():
         health = min(100, health+20)
         eat_timer = 3
     if health <= 0:
+        game_over = True
         status.text = "SETTLEMENT LOST — close the window and rerun"
-        application.pause()
+        return
 
     carrying = f" | CARRYING {carry_kind.upper()}" if carry_kind else ""
     hud.text = f"HP {int(health)}   FOOD {food}   WOOD {wood}   GOLD {coins}   HOUSES {sum(1 for b in buildings if b.kind == 'house')}"
