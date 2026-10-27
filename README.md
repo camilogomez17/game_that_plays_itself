@@ -1,6 +1,6 @@
-# Self-Playing Survival (MVP)
+# Tiny Kingdom — Autonomous RTS
 
-A tiny, automatically played 3D survival sandbox in Python 3. The agent walks toward food, wood, and coin sources, automatically collects them, explores generated terrain, and fights randomly placed enemies.
+A small Python 3 settlement simulation inspired by classic real-time strategy games. The agent behaves like a villager: it walks to a resource, works there for a short time, carries one unit back to the Town Center, and deposits it. It automatically builds a small settlement and defends itself from raids.
 
 ## Run it
 
@@ -15,22 +15,19 @@ python3 main.py
 
 On Windows, activate the environment with `.venv\\Scripts\\activate`.
 
-## MVP scope
+## Gameplay
 
-- Third-person 3D scene and a self-playing character
-- Procedurally generated terrain chunks with food, wood, coins, and trees
-- Nearby chunks are created as the player explores; distant chunks are destroyed to bound memory use
-- Enemies approach and deal damage; the agent automatically fights back
-- HUD tracks health, food, wood, coins, and approximate world position
-- No save system, assets, backend, or external services
+- Autonomous worker gathers wood from trees, food from berry bushes, and gold from ore deposits.
+- The worker spends time working at each node, carries resources, and returns to the Town Center to deposit them.
+- Stored resources are automatically spent on houses and a defensive tower.
+- Enemy raiders arrive over time; the worker fights back, food heals damage, and a tower provides extra defense.
+- The world generates deterministic terrain chunks around the worker; distant chunks are removed to keep memory bounded.
+- Low-poly characters, trees, resource nodes, houses, a Town Center, and a tower are assembled from Ursina primitives. No external art assets are required.
+
+## Controls
+
+The simulation is autonomous. Press `Esc` to quit.
 
 ## Design constraints
 
-Keep the prototype intentionally small: one game loop, primitive geometry, deterministic chunk seeds, and a fixed chunk radius. World memory stays bounded by the active chunk window. The resource list only tracks active resources.
-
-## Next sensible increments
-
-1. Fix resource consumption and enemy spawn timing with explicit cooldowns.
-2. Add an agent state machine (gather, flee, fight, heal).
-3. Add a seed/config file and lightweight save data (JSON).
-4. Add tests for chunk generation and agent decisions before adding more systems.
+The prototype intentionally uses one game loop, one dependency, deterministic chunk seeds, primitive 3D geometry, and a fixed active chunk radius. It does not yet include manual unit selection, multiple workers, save/load, or imported character animations.
