@@ -2,6 +2,7 @@
 # Request a modern OpenGL context before Ursina initializes Panda3D.
 from panda3d.core import loadPrcFileData
 loadPrcFileData("", "gl-version 3 2")
+loadPrcFileData("", "win-size 1280 800")
 from ursina import AmbientLight, DirectionalLight, Entity, Sky, Text, Ursina, Vec3, camera, color, destroy, lerp, time, window
 from random import Random
 from math import cos, floor, pi as PI, sin
@@ -52,7 +53,7 @@ worker = make_worker()
 
 
 def make_tree(parent, scale=1.0):
-    part(parent, "cylinder", color.rgb(105, 72, 43), (0, 0.8, 0), (0.32, 1.6, 0.32))
+    part(parent, "cube", color.rgb(105, 72, 43), (0, 0.8, 0), (0.32, 1.6, 0.32))
     part(parent, "sphere", color.rgb(43, 117, 53), (0, 1.85, 0), (1.15, 1.25, 1.1))
     part(parent, "sphere", color.rgb(57, 137, 59), (0.35, 2.15, 0.05), (0.78, 0.85, 0.82))
 
@@ -78,16 +79,16 @@ def make_building(kind, x, z):
     root = Entity(position=(x, 0, z))
     if kind == "town":
         part(root, "cube", color.rgb(190, 168, 126), (0, 1.05, 0), (3.8, 2.1, 3.4))
-        part(root, "cone", color.rgb(135, 63, 47), (0, 2.55, 0), (3.6, 1.5, 3.6))
+        part(root, "sphere", color.rgb(135, 63, 47), (0, 2.55, 0), (3.6, 1.5, 3.6))
         part(root, "cube", color.rgb(94, 65, 42), (0, 0.65, -1.73), (0.75, 1.3, 0.12))
         part(root, "cube", color.rgb(231, 205, 143), (0, 2.05, -1.75), (0.85, 0.18, 0.1))
     elif kind == "house":
         part(root, "cube", color.rgb(204, 188, 146), (0, 0.65, 0), (2.0, 1.3, 1.8))
-        part(root, "cone", color.rgb(139, 67, 48), (0, 1.65, 0), (2.3, 1.1, 2.2))
+        part(root, "sphere", color.rgb(139, 67, 48), (0, 1.65, 0), (2.3, 1.1, 2.2))
         part(root, "cube", color.rgb(89, 59, 40), (0, 0.4, -0.93), (0.42, 0.8, 0.08))
     else:
         part(root, "cube", color.rgb(159, 151, 131), (0, 1.2, 0), (1.25, 2.4, 1.25))
-        part(root, "cone", color.rgb(118, 61, 48), (0, 2.75, 0), (1.5, 0.9, 1.5))
+        part(root, "sphere", color.rgb(118, 61, 48), (0, 2.75, 0), (1.5, 0.9, 1.5))
         part(root, "cube", color.rgb(111, 77, 50), (0, 2.0, -0.65), (0.16, 0.8, 0.12))
     buildings.append(root)
     root.kind = kind
@@ -152,7 +153,7 @@ def spawn_enemy():
     enemy = Entity(position=(worker.x + cos(angle)*15, 0, worker.z + sin(angle)*15))
     part(enemy, "cube", color.rgb(150, 48, 48), (0, 1.0, 0), (0.75, 0.95, 0.5))
     part(enemy, "sphere", color.rgb(195, 142, 104), (0, 1.68, 0), (0.42, 0.42, 0.42))
-    part(enemy, "cone", color.rgb(66, 54, 48), (0, 1.96, 0), (0.5, 0.25, 0.5))
+    part(enemy, "sphere", color.rgb(66, 54, 48), (0, 1.96, 0), (0.5, 0.25, 0.5))
     enemy.hp = 3
     enemies.append(enemy)
 
