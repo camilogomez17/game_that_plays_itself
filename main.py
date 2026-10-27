@@ -42,6 +42,7 @@ def block(parent, model, tint, pos, size, rotation=(0, 0, 0)):
 town = Entity(position=(0, 0, 0))
 block(town, "cube", color.rgb(190, 168, 126), (0, 1, 0), (3.8, 2, 3.4))
 block(town, "cube", color.rgb(135, 63, 47), (0, 2.2, 0), (3.5, 0.5, 3.2), (0, 45, 0))
+town.kind = "town"
 buildings.append(town)
 
 worker = Entity(position=(0, 0, -4))
